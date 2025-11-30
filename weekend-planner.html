@@ -577,14 +577,14 @@
           class="legend-color"
           style="background: var(--color-holiday)"
         ></div>
-        <span>Jour férié accolé</span>
+        <span>Pont (vendredi ou lundi férié)</span>
       </div>
       <div class="legend-item">
         <div
           class="legend-color"
           style="background: var(--color-holiday-close)"
         ></div>
-        <span>Jour férié proche (jeudi/mardi)</span>
+        <span>Quasi-pont (jeudi ou mardi férié)</span>
       </div>
     </div>
 
@@ -634,46 +634,14 @@
     </div>
 
     <script>
-      // Jours fériés français 2025-2026
-      const publicHolidays = {
-        2025: [
-          "2025-01-01",
-          "2025-04-21",
-          "2025-05-01",
-          "2025-05-08",
-          "2025-05-29",
-          "2025-06-09",
-          "2025-07-14",
-          "2025-08-15",
-          "2025-11-01",
-          "2025-11-11",
-          "2025-12-25",
-        ],
-        2026: [
-          "2026-01-01",
-          "2026-04-06",
-          "2026-05-01",
-          "2026-05-08",
-          "2026-05-14",
-          "2026-05-25",
-          "2026-07-14",
-          "2026-08-15",
-          "2026-11-01",
-          "2026-11-11",
-          "2026-12-25",
-        ],
-      };
-
       class WeekendPlanner {
         constructor() {
           this.data = this.loadData();
           this.planningToken = this.getTokenFromUrl();
           this.pbUrlFromParams = this.getPocketBaseFromUrl();
 
-          // Priorité: URL params > localStorage
           this.pbUrl = this.pbUrlFromParams || this.data.pbUrl || "";
 
-          // Sauvegarder l'URL si elle vient des params
           if (this.pbUrlFromParams) {
             this.data.pbUrl = this.pbUrlFromParams;
             this.saveData();
@@ -685,18 +653,20 @@
           this.currentPlanning = null;
           this.isAuthenticated = false;
           this.reconnectTimeout = null;
+          this.publicHolidays = [];
           this.init();
         }
 
-        init() {
+        async init() {
           this.setupEventListeners();
+
+          await this.loadPublicHolidays();
 
           if (this.pbUrl) {
             this.initPocketBase().then(() => {
               this.checkAuth();
             });
           } else if (this.planningToken) {
-            // Token présent mais pas de PocketBase configuré
             document.getElementById("authControls").style.display = "flex";
             alert(
               "Veuillez configurer l'URL PocketBase pour accéder à ce planning"
@@ -705,6 +675,51 @@
 
           this.generateWeekends();
           this.render();
+        }
+
+        async loadPublicHolidays() {
+          const currentYear = new Date().getFullYear();
+          const years = [currentYear, currentYear + 1, currentYear + 2];
+
+          try {
+            const promises = years.map((year) =>
+              fetch(
+                `https://calendrier.api.gouv.fr/jours-feries/metropole/${year}.json`
+              )
+                .then((r) => r.json())
+                .then((data) => Object.keys(data))
+            );
+
+            const results = await Promise.all(promises);
+            this.publicHolidays = results.flat();
+            console.log("✅ Jours fériés chargés:", this.publicHolidays.length);
+          } catch (error) {
+            console.error("❌ Erreur API jours fériés:", error);
+            this.publicHolidays = [
+              "2025-01-01",
+              "2025-04-21",
+              "2025-05-01",
+              "2025-05-08",
+              "2025-05-29",
+              "2025-06-09",
+              "2025-07-14",
+              "2025-08-15",
+              "2025-11-01",
+              "2025-11-11",
+              "2025-12-25",
+              "2026-01-01",
+              "2026-04-06",
+              "2026-05-01",
+              "2026-05-08",
+              "2026-05-14",
+              "2026-05-25",
+              "2026-07-14",
+              "2026-08-15",
+              "2026-11-01",
+              "2026-11-11",
+              "2026-12-25",
+            ];
+          }
         }
 
         setupEventListeners() {
@@ -751,6 +766,7 @@
         async initPocketBase() {
           try {
             if (!window.PocketBase) {
+              console.log("📦 Chargement SDK PocketBase...");
               await new Promise((resolve, reject) => {
                 const script = document.createElement("script");
                 script.src =
@@ -759,11 +775,22 @@
                 script.onerror = reject;
                 document.head.appendChild(script);
               });
+              console.log("✅ SDK PocketBase chargé");
             }
+
+            console.log("🔌 Connexion à PocketBase:", this.pbUrl);
             this.pb = new PocketBase(this.pbUrl);
             this.pb.autoCancellation(false);
+
+            // Tester la connexion
+            try {
+              await this.pb.health.check();
+              console.log("✅ PocketBase connecté et opérationnel");
+            } catch (healthError) {
+              console.warn("⚠️ Health check échoué:", healthError);
+            }
           } catch (error) {
-            console.error("Erreur init PocketBase:", error);
+            console.error("❌ Erreur init PocketBase:", error);
           }
         }
 
@@ -945,20 +972,33 @@
           }
 
           try {
-            console.log("Chargement planning avec token:", this.planningToken);
+            console.log(
+              "🔍 Chargement planning avec token:",
+              this.planningToken
+            );
 
             const planning = await this.pb
               .collection("plannings")
               .getFirstListItem(`token = "${this.planningToken}"`);
 
-            console.log("Planning trouvé:", planning.name);
+            console.log(
+              "✅ Planning trouvé:",
+              planning.name,
+              "ID:",
+              planning.id
+            );
             this.currentPlanning = planning;
 
+            // Charger les réponses
             await this.syncFromPocketBase();
+
+            // Configurer le WebSocket
+            console.log("🔌 Configuration WebSocket...");
             await this.setupRealtimeSync();
+
             this.render();
           } catch (error) {
-            console.error("Erreur chargement planning:", error);
+            console.error("❌ Erreur chargement planning:", error);
 
             if (error.status === 404) {
               alert(
@@ -1007,19 +1047,34 @@
         }
 
         async setupRealtimeSync() {
-          if (!this.pb || !this.currentPlanning) return;
+          if (!this.pb || !this.currentPlanning) {
+            console.log("❌ Sync impossible - PB ou planning manquant");
+            return;
+          }
 
-          this.pb.collection("weekend_responses").unsubscribe("*");
+          // Se désabonner des anciennes souscriptions
+          try {
+            await this.pb.collection("weekend_responses").unsubscribe("*");
+          } catch (e) {
+            console.log("Pas de souscription précédente");
+          }
+
           this.updateSyncStatus("connecting");
 
           try {
-            await this.pb
-              .collection("weekend_responses")
-              .subscribe("*", (e) => {
-                if (e.record.planning_id === this.currentPlanning.id) {
+            // Subscribe avec filter spécifique
+            await this.pb.collection("weekend_responses").subscribe(
+              "*",
+              (e) => {
+                console.log("📡 Event reçu:", e.action, e.record);
+
+                // Vérifier que c'est pour notre planning
+                if (
+                  e.record &&
+                  e.record.planning_id === this.currentPlanning.id
+                ) {
                   console.log(
-                    "⚡ Mise à jour temps réel:",
-                    e.action,
+                    "⚡ Mise à jour pour notre planning:",
                     e.record.user_name
                   );
 
@@ -1036,6 +1091,7 @@
                       }
                     }
                   } else {
+                    // create ou update
                     if (!this.data.responses[weekend_id]) {
                       this.data.responses[weekend_id] = {};
                     }
@@ -1048,15 +1104,22 @@
                   this.saveData();
                   this.renderWithAnimation(weekend_id);
                 }
-              });
+              },
+              {
+                // Options de subscription
+                expand: "",
+              }
+            );
 
+            // Connexion réussie - reset du compteur
+            this.reconnectAttempts = 0;
             this.updateSyncStatus("connected");
             console.log(
-              "✓ Sync temps réel activée:",
+              "✅ WebSocket connecté pour planning:",
               this.currentPlanning.name
             );
           } catch (error) {
-            console.error("Erreur souscription:", error);
+            console.error("❌ Erreur WebSocket:", error);
             this.updateSyncStatus("disconnected");
             this.scheduleReconnect();
           }
@@ -1102,15 +1165,33 @@
         }
 
         scheduleReconnect() {
-          // Tentative de reconnexion après 5 secondes
           if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
           }
 
+          if (!this.reconnectAttempts) {
+            this.reconnectAttempts = 0;
+          }
+
+          this.reconnectAttempts++;
+
+          if (this.reconnectAttempts > 10) {
+            console.error("❌ Trop de tentatives de reconnexion WebSocket");
+            this.updateSyncStatus("disconnected");
+            return;
+          }
+
+          const delay = Math.min(5000 * this.reconnectAttempts, 30000); // Max 30s
+          console.log(
+            `🔄 Reconnexion WebSocket dans ${delay / 1000}s (tentative ${
+              this.reconnectAttempts
+            })`
+          );
+
           this.reconnectTimeout = setTimeout(() => {
-            console.log("Tentative de reconnexion WebSocket...");
+            console.log("🔌 Tentative de reconnexion WebSocket...");
             this.setupRealtimeSync();
-          }, 5000);
+          }, delay);
         }
 
         async syncFromPocketBase() {
@@ -1228,7 +1309,14 @@
         }
 
         generateWeekends() {
-          if (this.data.weekends.length > 0) return;
+          // Forcer la régénération si la version change
+          const WEEKEND_VERSION = 2; // Incrémenter quand la logique change
+          if (
+            this.data.weekends.length > 0 &&
+            this.data.weekendVersion === WEEKEND_VERSION
+          ) {
+            return;
+          }
 
           const weekends = [];
           const today = new Date();
@@ -1255,31 +1343,51 @@
           }
 
           this.data.weekends = weekends;
+          this.data.weekendVersion = WEEKEND_VERSION;
           this.saveData();
         }
 
         getWeekendType(saturday, sunday) {
-          const allHolidays = [
-            ...publicHolidays["2025"],
-            ...publicHolidays["2026"],
-          ];
-
-          const checkDate = (date, offset) => {
-            const d = new Date(date);
-            d.setDate(d.getDate() + offset);
-            return allHolidays.includes(this.formatDate(d));
-          };
+          const satStr = this.formatDate(saturday);
+          const sunStr = this.formatDate(sunday);
 
           if (
-            checkDate(saturday, 0) ||
-            checkDate(sunday, 0) ||
-            checkDate(saturday, -1) ||
-            checkDate(sunday, 1)
+            this.publicHolidays.includes(satStr) ||
+            this.publicHolidays.includes(sunStr)
           ) {
+            return "normal";
+          }
+
+          const friday = new Date(saturday);
+          friday.setDate(friday.getDate() - 1);
+          const fridayStr = this.formatDate(friday);
+          const fridayHoliday =
+            friday.getDay() === 5 && this.publicHolidays.includes(fridayStr);
+
+          const monday = new Date(sunday);
+          monday.setDate(monday.getDate() + 1);
+          const mondayStr = this.formatDate(monday);
+          const mondayHoliday =
+            monday.getDay() === 1 && this.publicHolidays.includes(mondayStr);
+
+          if (fridayHoliday || mondayHoliday) {
             return "holiday";
           }
 
-          if (checkDate(saturday, -2) || checkDate(sunday, 2)) {
+          const thursday = new Date(saturday);
+          thursday.setDate(thursday.getDate() - 2);
+          const thursdayStr = this.formatDate(thursday);
+          const thursdayHoliday =
+            thursday.getDay() === 4 &&
+            this.publicHolidays.includes(thursdayStr);
+
+          const tuesday = new Date(sunday);
+          tuesday.setDate(tuesday.getDate() + 2);
+          const tuesdayStr = this.formatDate(tuesday);
+          const tuesdayHoliday =
+            tuesday.getDay() === 2 && this.publicHolidays.includes(tuesdayStr);
+
+          if (thursdayHoliday || tuesdayHoliday) {
             return "holiday-close";
           }
 
@@ -1442,9 +1550,9 @@
               const typeClass = weekend.type !== "normal" ? weekend.type : "";
               const typeLabel =
                 weekend.type === "holiday"
-                  ? "Férié accolé"
+                  ? "Pont"
                   : weekend.type === "holiday-close"
-                  ? "Férié proche"
+                  ? "Quasi-pont"
                   : "";
 
               return `
