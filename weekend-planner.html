@@ -667,11 +667,21 @@
       class WeekendPlanner {
         constructor() {
           this.data = this.loadData();
+          this.planningToken = this.getTokenFromUrl();
+          this.pbUrlFromParams = this.getPocketBaseFromUrl();
+
+          // Priorité: URL params > localStorage
+          this.pbUrl = this.pbUrlFromParams || this.data.pbUrl || "";
+
+          // Sauvegarder l'URL si elle vient des params
+          if (this.pbUrlFromParams) {
+            this.data.pbUrl = this.pbUrlFromParams;
+            this.saveData();
+          }
+
           this.currentUser = this.data.currentUser || "";
-          this.pbUrl = this.data.pbUrl || "";
           this.selectedWeekend = null;
           this.pb = null;
-          this.planningToken = this.getTokenFromUrl();
           this.currentPlanning = null;
           this.isAuthenticated = false;
           this.reconnectTimeout = null;
@@ -731,6 +741,11 @@
         getTokenFromUrl() {
           const params = new URLSearchParams(window.location.search);
           return params.get("planning") || params.get("token");
+        }
+
+        getPocketBaseFromUrl() {
+          const params = new URLSearchParams(window.location.search);
+          return params.get("pb");
         }
 
         async initPocketBase() {
@@ -878,9 +893,10 @@
             this.data.responses = {};
             this.saveData();
 
-            // Mettre à jour l'URL
+            // Mettre à jour l'URL avec token et pb
             const url = new URL(window.location);
             url.searchParams.set("planning", planning.token);
+            url.searchParams.set("pb", this.pbUrl);
             window.history.pushState({}, "", url);
             this.planningToken = planning.token;
 
@@ -912,6 +928,7 @@
 
               const url = new URL(window.location);
               url.searchParams.set("planning", this.planningToken);
+              url.searchParams.set("pb", this.pbUrl);
               window.history.replaceState({}, "", url);
 
               await this.loadPlanningByToken();
@@ -965,6 +982,7 @@
             window.location.origin + window.location.pathname
           );
           url.searchParams.set("planning", this.currentPlanning.token);
+          url.searchParams.set("pb", this.pbUrl);
 
           navigator.clipboard
             .writeText(url.toString())
