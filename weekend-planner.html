@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planificateur Week-ends</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-bg: #FAFAFA;
+            --color-surface: #FFFFFF;
+            --color-text: #1A1A1A;
+            --color-text-secondary: #6B6B6B;
+            --color-border: #E5E5E5;
+            --color-primary: #0066CC;
+            --color-success: #00875A;
+            --color-warning: #FF991F;
+            --color-holiday: #E3F2FD;
+            --color-holiday-close: #FFF9C4;
+            --color-available: #E8F5E9;
+            --color-unavailable: #FFEBEE;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 48px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        .sync-status {
+            margin-top: 8px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-text-secondary);
+        }
+
+        .sync-status.connected::before {
+            background: var(--color-success);
+            box-shadow: 0 0 4px var(--color-success);
+        }
+
+        .sync-status.disconnected::before {
+            background: #D32F2F;
+        }
+
+        .sync-status.connecting::before {
+            background: var(--color-warning);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .instructions {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+
+        .instruction-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .step-number {
+            width: 32px;
+            height: 32px;
+            background: var(--color-text);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .step-content strong {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .step-content span {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+
+        .controls {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--color-text-secondary);
+        }
+
+        input[type="text"] {
+            padding: 10px 12px;
+            border: 1px solid var(--color-border);
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        button {
+            padding: 10px 20px;
+            background: var(--color-text);
+            color: white;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            font-family: inherit;
+            align-self: flex-end;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        button:active {
+            opacity: 0.7;
+        }
+
+        .legend {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border: 1px solid var(--color-border);
+        }
+
+        .weekends-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .weekend-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 20px;
+            transition: box-shadow 0.2s, transform 0.2s, background-color 0.3s;
+            cursor: pointer;
+        }
+
+        .weekend-card.updating {
+            animation: cardUpdate 0.6s ease;
+        }
+
+        @keyframes cardUpdate {
+            0%, 100% { background-color: var(--color-surface); }
+            50% { background-color: #F0F7FF; }
+        }
+
+        .weekend-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .weekend-card.holiday {
+            background: var(--color-holiday);
+        }
+
+        .weekend-card.holiday-close {
+            background: var(--color-holiday-close);
+        }
+
+        .weekend-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .weekend-date {
+            font-size: 16px;
+            font-weight: 500;
+            letter-spacing: -0.2px;
+        }
+
+        .weekend-label {
+            font-size: 11px;
+            padding: 4px 8px;
+            background: var(--color-text);
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .weekend-label.holiday {
+            background: var(--color-primary);
+        }
+
+        .weekend-label.holiday-close {
+            background: var(--color-warning);
+        }
+
+        .weekend-days {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .weekend-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .stat-label {
+            color: var(--color-text-secondary);
+        }
+
+        .stat-value {
+            font-weight: 500;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--color-border);
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--color-success);
+            transition: width 0.3s;
+        }
+
+        .participants-list {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .participants-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--color-text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .participant-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 13px;
+            gap: 8px;
+        }
+
+        .participant-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .participant-note {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            font-style: italic;
+        }
+
+        .participant-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .participant-status.available {
+            background: var(--color-success);
+        }
+
+        .participant-status.unavailable {
+            background: #D32F2F;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .modal-subtitle {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .participant-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 16px;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .radio-label input[type="radio"] {
+            cursor: pointer;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .button-secondary {
+            background: transparent;
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--color-text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .weekends-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .instructions {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .instruction-step {
+                min-width: auto;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            button {
+                align-self: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Planificateur Week-ends</h1>
+        <p class="subtitle">Gérez les disponibilités de votre équipe</p>
+        <div id="syncStatus" class="sync-status"></div>
+    </header>
+
+    <div class="instructions">
+        <div class="instruction-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <strong>Enregistrez votre nom</strong>
+                <span>Saisissez votre nom ci-dessous pour commencer</span>
+            </div>
+        </div>
+        <div class="instruction-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <strong>Cliquez sur un week-end</strong>
+                <span>Indiquez votre disponibilité pour chaque date</span>
+            </div>
+        </div>
+        <div class="instruction-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <strong>Consultez les statistiques</strong>
+                <span>Voyez qui est disponible et les pourcentages</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls" id="authControls">
+        <div class="form-group">
+            <label>URL PocketBase</label>
+            <input type="text" id="pbUrl" placeholder="https://votre-instance.pocketbase.io">
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="userEmail" placeholder="votre@email.com">
+        </div>
+        <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="userPassword" placeholder="••••••••">
+        </div>
+        <button id="loginButton">Se connecter</button>
+    </div>
+
+    <div class="controls" id="planningControls" style="display: none;">
+        <div class="form-group">
+            <label>Votre nom</label>
+            <input type="text" id="userName" placeholder="Entrez votre nom">
+        </div>
+        <button id="saveConfig">Enregistrer</button>
+        <div style="flex: 1;"></div>
+        <button id="createPlanning" class="button-secondary">Nouveau planning</button>
+        <button id="sharePlanning" class="button-secondary">Partager</button>
+        <button id="logoutButton" class="button-secondary">Déconnexion</button>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: white;"></div>
+            <span>Week-end normal</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: var(--color-holiday);"></div>
+            <span>Jour férié accolé</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: var(--color-holiday-close);"></div>
+            <span>Jour férié proche (jeudi/mardi)</span>
+        </div>
+    </div>
+
+    <div id="weekendsContainer" class="weekends-grid"></div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle"></div>
+                <div class="modal-subtitle" id="modalSubtitle"></div>
+            </div>
+            <div class="modal-body">
+                <div class="participant-form">
+                    <div class="form-group">
+                        <label>Votre disponibilité</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="availability" value="available" checked>
+                                Disponible
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="availability" value="unavailable">
+                                Non disponible
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Note (optionnelle)</label>
+                        <input type="text" id="userNote" placeholder="Ex: Pas sûr, à confirmer...">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button-secondary" id="closeModal">Annuler</button>
+                <button id="saveAvailability">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Jours fériés français 2025-2026
+        const publicHolidays = {
+            '2025': [
+                '2025-01-01', '2025-04-21', '2025-05-01', '2025-05-08', '2025-05-29',
+                '2025-06-09', '2025-07-14', '2025-08-15', '2025-11-01', '2025-11-11', '2025-12-25'
+            ],
+            '2026': [
+                '2026-01-01', '2026-04-06', '2026-05-01', '2026-05-08', '2026-05-14',
+                '2026-05-25', '2026-07-14', '2026-08-15', '2026-11-01', '2026-11-11', '2026-12-25'
+            ]
+        };
+
+        class WeekendPlanner {
+            constructor() {
+                this.data = this.loadData();
+                this.currentUser = this.data.currentUser || '';
+                this.pbUrl = this.data.pbUrl || '';
+                this.selectedWeekend = null;
+                this.pb = null;
+                this.planningToken = this.getTokenFromUrl();
+                this.currentPlanning = null;
+                this.isAuthenticated = false;
+                this.reconnectTimeout = null;
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                
+                if (this.pbUrl) {
+                    this.initPocketBase().then(() => {
+                        if (this.planningToken) {
+                            this.loadPlanningByToken();
+                        }
+                        this.checkAuth();
+                    });
+                }
+                
+                this.generateWeekends();
+                this.updateUI();
+            }
+
+            setupEventListeners() {
+                document.getElementById('loginButton').addEventListener('click', () => this.login());
+                document.getElementById('logoutButton').addEventListener('click', () => this.logout());
+                document.getElementById('saveConfig').addEventListener('click', () => this.saveConfig());
+                document.getElementById('createPlanning').addEventListener('click', () => this.createNewPlanning());
+                document.getElementById('sharePlanning').addEventListener('click', () => this.shareCurrentPlanning());
+                document.getElementById('closeModal').addEventListener('click', () => this.closeModal());
+                document.getElementById('saveAvailability').addEventListener('click', () => this.saveAvailability());
+                
+                // Connexion avec Enter
+                document.getElementById('userPassword').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.login();
+                });
+            }
+
+            getTokenFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                return params.get('planning') || params.get('token');
+            }
+
+            async initPocketBase() {
+                try {
+                    if (!window.PocketBase) {
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = 'https://cdn.jsdelivr.net/npm/pocketbase@0.21.1/dist/pocketbase.umd.js';
+                            script.onload = resolve;
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                        });
+                    }
+                    this.pb = new PocketBase(this.pbUrl);
+                    this.pb.autoCancellation(false);
+                } catch (error) {
+                    console.error('Erreur init PocketBase:', error);
+                }
+            }
+
+            async checkAuth() {
+                if (!this.pb) return;
+                
+                this.isAuthenticated = this.pb.authStore.isValid;
+                
+                if (this.isAuthenticated) {
+                    document.getElementById('authControls').style.display = 'none';
+                    document.getElementById('planningControls').style.display = 'flex';
+                    
+                    if (!this.planningToken) {
+                        await this.loadUserPlannings();
+                    }
+                } else {
+                    // Mode participant (avec token) ou login nécessaire
+                    if (this.planningToken) {
+                        document.getElementById('authControls').style.display = 'none';
+                        document.getElementById('planningControls').style.display = 'flex';
+                        document.getElementById('createPlanning').style.display = 'none';
+                    }
+                }
+                
+                this.updateUI();
+            }
+
+            async login() {
+                const email = document.getElementById('userEmail').value.trim();
+                const password = document.getElementById('userPassword').value.trim();
+                const pbUrl = document.getElementById('pbUrl').value.trim();
+                
+                if (!email || !password || !pbUrl) {
+                    alert('Veuillez remplir tous les champs');
+                    return;
+                }
+                
+                this.pbUrl = pbUrl;
+                this.data.pbUrl = pbUrl;
+                this.saveData();
+                
+                if (!this.pb) {
+                    await this.initPocketBase();
+                }
+                
+                try {
+                    await this.pb.collection('users').authWithPassword(email, password);
+                    this.isAuthenticated = true;
+                    await this.checkAuth();
+                } catch (error) {
+                    alert('Erreur de connexion: ' + error.message);
+                }
+            }
+
+            logout() {
+                if (this.pb) {
+                    this.pb.collection('weekend_responses').unsubscribe('*');
+                    this.pb.authStore.clear();
+                }
+                
+                if (this.reconnectTimeout) {
+                    clearTimeout(this.reconnectTimeout);
+                    this.reconnectTimeout = null;
+                }
+                
+                this.isAuthenticated = false;
+                this.currentPlanning = null;
+                this.data.responses = {};
+                this.saveData();
+                
+                this.updateSyncStatus('disconnected');
+                
+                document.getElementById('authControls').style.display = 'flex';
+                document.getElementById('planningControls').style.display = 'none';
+                
+                window.history.replaceState({}, document.title, window.location.pathname);
+                this.planningToken = null;
+                
+                this.render();
+            }
+
+            async createNewPlanning() {
+                if (!this.isAuthenticated) {
+                    alert('Vous devez être connecté pour créer un planning');
+                    return;
+                }
+                
+                const name = prompt('Nom du planning:', 'Planning ' + new Date().toLocaleDateString('fr-FR'));
+                if (!name) return;
+                
+                try {
+                    const planning = await this.pb.collection('plannings').create({
+                        name: name,
+                        token: this.generateToken(),
+                        owner: this.pb.authStore.model.id,
+                        created: new Date().toISOString()
+                    });
+                    
+                    this.currentPlanning = planning;
+                    this.data.responses = {};
+                    this.saveData();
+                    
+                    // Mettre à jour l'URL
+                    const url = new URL(window.location);
+                    url.searchParams.set('planning', planning.token);
+                    window.history.pushState({}, '', url);
+                    this.planningToken = planning.token;
+                    
+                    this.setupRealtimeSync();
+                    this.render();
+                    
+                    alert('Planning créé ! Utilisez le bouton "Partager" pour obtenir le lien.');
+                } catch (error) {
+                    alert('Erreur création planning: ' + error.message);
+                }
+            }
+
+            async loadUserPlannings() {
+                if (!this.isAuthenticated || !this.pb) return;
+                
+                try {
+                    const plannings = await this.pb.collection('plannings').getFullList({
+                        filter: `owner = "${this.pb.authStore.model.id}"`,
+                        sort: '-created'
+                    });
+                    
+                    if (plannings.length > 0) {
+                        this.currentPlanning = plannings[0];
+                        this.planningToken = plannings[0].token;
+                        
+                        const url = new URL(window.location);
+                        url.searchParams.set('planning', this.planningToken);
+                        window.history.replaceState({}, '', url);
+                        
+                        await this.loadPlanningByToken();
+                    }
+                } catch (error) {
+                    console.error('Erreur chargement plannings:', error);
+                }
+            }
+
+            async loadPlanningByToken() {
+                if (!this.planningToken || !this.pb) return;
+                
+                try {
+                    const planning = await this.pb.collection('plannings').getFirstListItem(
+                        `token = "${this.planningToken}"`
+                    );
+                    
+                    this.currentPlanning = planning;
+                    await this.syncFromPocketBase();
+                    this.setupRealtimeSync();
+                    this.render();
+                } catch (error) {
+                    console.error('Planning non trouvé:', error);
+                    alert('Planning introuvable. Vérifiez le lien.');
+                }
+            }
+
+            shareCurrentPlanning() {
+                if (!this.currentPlanning) {
+                    alert('Aucun planning actif');
+                    return;
+                }
+                
+                const url = new URL(window.location.origin + window.location.pathname);
+                url.searchParams.set('planning', this.currentPlanning.token);
+                
+                navigator.clipboard.writeText(url.toString()).then(() => {
+                    alert('Lien copié !\n\n' + url.toString() + '\n\nPartagez ce lien avec votre équipe.');
+                }).catch(() => {
+                    prompt('Copiez ce lien:', url.toString());
+                });
+            }
+
+            generateToken() {
+                return 'pl_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
+            }
+
+            async setupRealtimeSync() {
+                if (!this.pb || !this.currentPlanning) return;
+                
+                this.pb.collection('weekend_responses').unsubscribe('*');
+                this.updateSyncStatus('connecting');
+                
+                try {
+                    await this.pb.collection('weekend_responses').subscribe('*', (e) => {
+                        if (e.record.planning_id === this.currentPlanning.id) {
+                            console.log('⚡ Mise à jour temps réel:', e.action, e.record.user_name);
+                            
+                            const { weekend_id, user_name, status, note } = e.record;
+                            
+                            if (e.action === 'delete') {
+                                if (this.data.responses[weekend_id]?.[user_name]) {
+                                    delete this.data.responses[weekend_id][user_name];
+                                    if (Object.keys(this.data.responses[weekend_id]).length === 0) {
+                                        delete this.data.responses[weekend_id];
+                                    }
+                                }
+                            } else {
+                                if (!this.data.responses[weekend_id]) {
+                                    this.data.responses[weekend_id] = {};
+                                }
+                                this.data.responses[weekend_id][user_name] = {
+                                    status: status,
+                                    note: note || ''
+                                };
+                            }
+                            
+                            this.saveData();
+                            this.renderWithAnimation(weekend_id);
+                        }
+                    });
+                    
+                    this.updateSyncStatus('connected');
+                    console.log('✓ Sync temps réel activée:', this.currentPlanning.name);
+                } catch (error) {
+                    console.error('Erreur souscription:', error);
+                    this.updateSyncStatus('disconnected');
+                    this.scheduleReconnect();
+                }
+            }
+
+            renderWithAnimation(weekendId) {
+                this.render();
+                
+                // Animer la carte mise à jour
+                const card = document.querySelector(`[data-weekend-id="${weekendId}"]`);
+                if (card) {
+                    card.classList.add('updating');
+                    setTimeout(() => card.classList.remove('updating'), 600);
+                }
+            }
+
+            updateSyncStatus(status) {
+                const statusEl = document.getElementById('syncStatus');
+                if (!statusEl) return;
+                
+                statusEl.className = `sync-status ${status}`;
+                
+                const messages = {
+                    'connected': '● Synchronisé en temps réel',
+                    'disconnected': '● Déconnecté - tentative de reconnexion...',
+                    'connecting': '● Connexion...'
+                };
+                
+                statusEl.textContent = messages[status] || '';
+                
+                if (status !== 'connected') {
+                    statusEl.style.display = 'flex';
+                } else {
+                    // Masquer après 3 secondes si connecté
+                    setTimeout(() => {
+                        if (statusEl.className.includes('connected')) {
+                            statusEl.style.display = 'none';
+                        }
+                    }, 3000);
+                }
+            }
+
+            scheduleReconnect() {
+                // Tentative de reconnexion après 5 secondes
+                if (this.reconnectTimeout) {
+                    clearTimeout(this.reconnectTimeout);
+                }
+                
+                this.reconnectTimeout = setTimeout(() => {
+                    console.log('Tentative de reconnexion WebSocket...');
+                    this.setupRealtimeSync();
+                }, 5000);
+            }
+
+            async syncFromPocketBase() {
+                if (!this.pb || !this.currentPlanning) return;
+                
+                try {
+                    const records = await this.pb.collection('weekend_responses').getFullList({
+                        filter: `planning_id = "${this.currentPlanning.id}"`,
+                        sort: '-created'
+                    });
+
+                    const responses = {};
+                    records.forEach(record => {
+                        if (!responses[record.weekend_id]) {
+                            responses[record.weekend_id] = {};
+                        }
+                        responses[record.weekend_id][record.user_name] = {
+                            status: record.status,
+                            note: record.note || ''
+                        };
+                    });
+
+                    this.data.responses = responses;
+                    this.saveData();
+                    this.render();
+                } catch (error) {
+                    console.error('Erreur sync:', error);
+                }
+            }
+
+            async syncToPocketBase(weekendId, userName, status, note) {
+                if (!this.pb || !this.currentPlanning) return;
+                
+                try {
+                    const filter = `planning_id = "${this.currentPlanning.id}" && weekend_id = "${weekendId}" && user_name = "${userName}"`;
+                    const existing = await this.pb.collection('weekend_responses').getFirstListItem(filter).catch(() => null);
+
+                    const data = {
+                        planning_id: this.currentPlanning.id,
+                        weekend_id: weekendId,
+                        user_name: userName,
+                        status: status,
+                        note: note
+                    };
+
+                    if (existing) {
+                        await this.pb.collection('weekend_responses').update(existing.id, data);
+                    } else {
+                        await this.pb.collection('weekend_responses').create(data);
+                    }
+                } catch (error) {
+                    console.error('Erreur sauvegarde:', error);
+                }
+            }
+
+            loadData() {
+                const saved = localStorage.getItem('weekendPlannerData');
+                if (saved) {
+                    return JSON.parse(saved);
+                }
+                return {
+                    currentUser: '',
+                    pbUrl: '',
+                    weekends: [],
+                    responses: {}
+                };
+            }
+
+            saveData() {
+                localStorage.setItem('weekendPlannerData', JSON.stringify(this.data));
+            }
+
+            saveConfig() {
+                const userName = document.getElementById('userName').value.trim();
+                
+                if (userName) {
+                    this.currentUser = userName;
+                    this.data.currentUser = userName;
+                    this.saveData();
+                }
+            }
+
+            generateWeekends() {
+                if (this.data.weekends.length > 0) return;
+
+                const weekends = [];
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                let current = new Date(today);
+                while (current.getDay() !== 6) {
+                    current.setDate(current.getDate() + 1);
+                }
+
+                for (let i = 0; i < 50; i++) {
+                    const saturday = new Date(current);
+                    const sunday = new Date(current);
+                    sunday.setDate(sunday.getDate() + 1);
+
+                    weekends.push({
+                        id: this.formatDate(saturday),
+                        saturday: this.formatDate(saturday),
+                        sunday: this.formatDate(sunday),
+                        type: this.getWeekendType(saturday, sunday)
+                    });
+
+                    current.setDate(current.getDate() + 7);
+                }
+
+                this.data.weekends = weekends;
+                this.saveData();
+            }
+
+            getWeekendType(saturday, sunday) {
+                const allHolidays = [...publicHolidays['2025'], ...publicHolidays['2026']];
+                
+                const checkDate = (date, offset) => {
+                    const d = new Date(date);
+                    d.setDate(d.getDate() + offset);
+                    return allHolidays.includes(this.formatDate(d));
+                };
+                
+                if (checkDate(saturday, 0) || checkDate(sunday, 0) || checkDate(saturday, -1) || checkDate(sunday, 1)) {
+                    return 'holiday';
+                }
+                
+                if (checkDate(saturday, -2) || checkDate(sunday, 2)) {
+                    return 'holiday-close';
+                }
+                
+                return 'normal';
+            }
+
+            formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            formatDateDisplay(dateStr) {
+                const [year, month, day] = dateStr.split('-');
+                const date = new Date(year, month - 1, day);
+                return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+            }
+
+            formatDayDisplay(dateStr) {
+                const [year, month, day] = dateStr.split('-');
+                const date = new Date(year, month - 1, day);
+                return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+            }
+
+            openWeekendModal(weekend) {
+                if (!this.currentUser) {
+                    alert('Veuillez d\'abord enregistrer votre nom');
+                    return;
+                }
+
+                this.selectedWeekend = weekend;
+                document.getElementById('modalTitle').textContent = `Week-end du ${this.formatDateDisplay(weekend.saturday)}`;
+                document.getElementById('modalSubtitle').textContent = `${this.formatDayDisplay(weekend.saturday)} - ${this.formatDayDisplay(weekend.sunday)}`;
+
+                const userResponse = this.data.responses[weekend.id]?.[this.currentUser];
+                if (userResponse) {
+                    const status = typeof userResponse === 'string' ? userResponse : userResponse.status;
+                    const note = typeof userResponse === 'string' ? '' : (userResponse.note || '');
+                    
+                    document.querySelector(`input[value="${status}"]`).checked = true;
+                    document.getElementById('userNote').value = note;
+                } else {
+                    document.querySelector('input[value="available"]').checked = true;
+                    document.getElementById('userNote').value = '';
+                }
+
+                document.getElementById('modal').classList.add('active');
+            }
+
+            closeModal() {
+                document.getElementById('modal').classList.remove('active');
+                this.selectedWeekend = null;
+            }
+
+            async saveAvailability() {
+                if (!this.selectedWeekend || !this.currentUser) return;
+
+                const availability = document.querySelector('input[name="availability"]:checked').value;
+                const note = document.getElementById('userNote').value.trim();
+                
+                if (!this.data.responses[this.selectedWeekend.id]) {
+                    this.data.responses[this.selectedWeekend.id] = {};
+                }
+
+                this.data.responses[this.selectedWeekend.id][this.currentUser] = {
+                    status: availability,
+                    note: note
+                };
+                
+                this.saveData();
+
+                if (this.pb && this.currentPlanning) {
+                    await this.syncToPocketBase(this.selectedWeekend.id, this.currentUser, availability, note);
+                }
+
+                this.closeModal();
+                this.render();
+            }
+
+            getWeekendStats(weekendId) {
+                const responses = this.data.responses[weekendId] || {};
+                const total = Object.keys(responses).length;
+                
+                let available = 0;
+                for (const response of Object.values(responses)) {
+                    const status = typeof response === 'string' ? response : response.status;
+                    if (status === 'available') available++;
+                }
+                
+                const percentage = total > 0 ? Math.round((available / total) * 100) : 0;
+                return { total, available, percentage, responses };
+            }
+
+            updateUI() {
+                document.getElementById('userName').value = this.currentUser;
+                document.getElementById('pbUrl').value = this.pbUrl;
+                
+                if (this.currentPlanning) {
+                    document.querySelector('h1').textContent = this.currentPlanning.name || 'Planificateur Week-ends';
+                }
+            }
+
+            render() {
+                const container = document.getElementById('weekendsContainer');
+                
+                if (!this.currentPlanning && this.pbUrl) {
+                    container.innerHTML = '<div class="empty-state">Créez un planning ou utilisez un lien partagé</div>';
+                    return;
+                }
+                
+                if (this.data.weekends.length === 0) {
+                    container.innerHTML = '<div class="empty-state">Aucun week-end disponible</div>';
+                    return;
+                }
+
+                container.innerHTML = this.data.weekends.map(weekend => {
+                    const stats = this.getWeekendStats(weekend.id);
+                    const typeClass = weekend.type !== 'normal' ? weekend.type : '';
+                    const typeLabel = weekend.type === 'holiday' ? 'Férié accolé' : 
+                                    weekend.type === 'holiday-close' ? 'Férié proche' : '';
+
+                    return `
+                        <div class="weekend-card ${typeClass}" data-weekend-id="${weekend.id}">
+                            <div class="weekend-header">
+                                <div class="weekend-date">${this.formatDateDisplay(weekend.saturday)}</div>
+                                ${typeLabel ? `<div class="weekend-label ${weekend.type}">${typeLabel}</div>` : ''}
+                            </div>
+                            <div class="weekend-days">
+                                ${this.formatDayDisplay(weekend.saturday)}<br>
+                                ${this.formatDayDisplay(weekend.sunday)}
+                            </div>
+                            <div class="weekend-stats">
+                                <div class="stat-row">
+                                    <span class="stat-label">Réponses</span>
+                                    <span class="stat-value">${stats.total} personne${stats.total > 1 ? 's' : ''}</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Disponibles</span>
+                                    <span class="stat-value">${stats.available} (${stats.percentage}%)</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${stats.percentage}%"></div>
+                                </div>
+                            </div>
+                            ${this.renderParticipants(stats.responses)}
+                        </div>
+                    `;
+                }).join('');
+
+                document.querySelectorAll('.weekend-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const weekendId = card.dataset.weekendId;
+                        const weekend = this.data.weekends.find(w => w.id === weekendId);
+                        if (weekend) {
+                            this.openWeekendModal(weekend);
+                        }
+                    });
+                });
+            }
+
+            renderParticipants(responses) {
+                if (Object.keys(responses).length === 0) return '';
+
+                const participantsList = Object.entries(responses)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([name, response]) => {
+                        const status = typeof response === 'string' ? response : response.status;
+                        const note = typeof response === 'string' ? '' : (response.note || '');
+                        
+                        return `
+                            <div class="participant-item">
+                                <div class="participant-name">
+                                    <span>${name}</span>
+                                    ${note ? `<span class="participant-note">${note}</span>` : ''}
+                                </div>
+                                <span class="participant-status ${status}"></span>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div class="participants-list">
+                        <div class="participants-title">Participants</div>
+                        ${participantsList}
+                    </div>
+                `;
+            }
+        }
+
+        const app = new WeekendPlanner();
+    </script>
+</body>
+</html>
