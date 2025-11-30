@@ -773,9 +773,8 @@
               ? "inline-block"
               : "none";
 
-            if (!this.isAuthenticated) {
-              await this.loadPlanningByToken();
-            }
+            // Charger le planning par token
+            await this.loadPlanningByToken();
           } else if (this.isAuthenticated) {
             // Mode créateur authentifié sans token
             document.getElementById("authControls").style.display = "none";
@@ -923,20 +922,36 @@
         }
 
         async loadPlanningByToken() {
-          if (!this.planningToken || !this.pb) return;
+          if (!this.planningToken || !this.pb) {
+            console.log("Token ou PB manquant:", this.planningToken, !!this.pb);
+            return;
+          }
 
           try {
+            console.log("Chargement planning avec token:", this.planningToken);
+
             const planning = await this.pb
               .collection("plannings")
               .getFirstListItem(`token = "${this.planningToken}"`);
 
+            console.log("Planning trouvé:", planning.name);
             this.currentPlanning = planning;
+
             await this.syncFromPocketBase();
-            this.setupRealtimeSync();
+            await this.setupRealtimeSync();
             this.render();
           } catch (error) {
-            console.error("Planning non trouvé:", error);
-            alert("Planning introuvable. Vérifiez le lien.");
+            console.error("Erreur chargement planning:", error);
+
+            if (error.status === 404) {
+              alert(
+                "Planning introuvable. Le lien est peut-être invalide ou le planning a été supprimé."
+              );
+            } else {
+              alert("Erreur lors du chargement du planning: " + error.message);
+            }
+
+            this.render();
           }
         }
 
@@ -1081,15 +1096,29 @@
         }
 
         async syncFromPocketBase() {
-          if (!this.pb || !this.currentPlanning) return;
+          if (!this.pb || !this.currentPlanning) {
+            console.log(
+              "Sync impossible - PB ou planning manquant:",
+              !!this.pb,
+              !!this.currentPlanning
+            );
+            return;
+          }
 
           try {
+            console.log(
+              "Sync depuis PocketBase pour planning:",
+              this.currentPlanning.id
+            );
+
             const records = await this.pb
               .collection("weekend_responses")
               .getFullList({
                 filter: `planning_id = "${this.currentPlanning.id}"`,
                 sort: "-created",
               });
+
+            console.log("Réponses trouvées:", records.length);
 
             const responses = {};
             records.forEach((record) => {
