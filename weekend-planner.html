@@ -505,7 +505,7 @@
   <body>
     <header>
       <h1>Planificateur Week-ends</h1>
-      <p class="subtitle">Gérez vos disponibilités</p>
+      <p class="subtitle">Gérez les disponibilités de votre équipe</p>
       <div id="syncStatus" class="sync-status"></div>
     </header>
 
@@ -683,15 +683,18 @@
 
           if (this.pbUrl) {
             this.initPocketBase().then(() => {
-              if (this.planningToken) {
-                this.loadPlanningByToken();
-              }
               this.checkAuth();
             });
+          } else if (this.planningToken) {
+            // Token présent mais pas de PocketBase configuré
+            document.getElementById("authControls").style.display = "flex";
+            alert(
+              "Veuillez configurer l'URL PocketBase pour accéder à ce planning"
+            );
           }
 
           this.generateWeekends();
-          this.updateUI();
+          this.render();
         }
 
         setupEventListeners() {
@@ -754,21 +757,41 @@
 
           this.isAuthenticated = this.pb.authStore.isValid;
 
-          if (this.isAuthenticated) {
+          if (this.planningToken) {
+            // Mode participant avec token - toujours afficher les contrôles
             document.getElementById("authControls").style.display = "none";
             document.getElementById("planningControls").style.display = "flex";
 
-            if (!this.planningToken) {
-              await this.loadUserPlannings();
+            // Masquer les boutons réservés au créateur
+            document.getElementById("createPlanning").style.display = "none";
+            document.getElementById("sharePlanning").style.display = this
+              .isAuthenticated
+              ? "inline-block"
+              : "none";
+            document.getElementById("logoutButton").style.display = this
+              .isAuthenticated
+              ? "inline-block"
+              : "none";
+
+            if (!this.isAuthenticated) {
+              await this.loadPlanningByToken();
             }
+          } else if (this.isAuthenticated) {
+            // Mode créateur authentifié sans token
+            document.getElementById("authControls").style.display = "none";
+            document.getElementById("planningControls").style.display = "flex";
+            document.getElementById("createPlanning").style.display =
+              "inline-block";
+            document.getElementById("sharePlanning").style.display =
+              "inline-block";
+            document.getElementById("logoutButton").style.display =
+              "inline-block";
+
+            await this.loadUserPlannings();
           } else {
-            // Mode participant (avec token) ou login nécessaire
-            if (this.planningToken) {
-              document.getElementById("authControls").style.display = "none";
-              document.getElementById("planningControls").style.display =
-                "flex";
-              document.getElementById("createPlanning").style.display = "none";
-            }
+            // Pas de token, pas d'auth - afficher login
+            document.getElementById("authControls").style.display = "flex";
+            document.getElementById("planningControls").style.display = "none";
           }
 
           this.updateUI();
@@ -1136,10 +1159,23 @@
 
         saveConfig() {
           const userName = document.getElementById("userName").value.trim();
+          const pbUrl = document.getElementById("pbUrl").value.trim();
 
           if (userName) {
             this.currentUser = userName;
             this.data.currentUser = userName;
+          }
+
+          if (pbUrl && pbUrl !== this.pbUrl) {
+            this.pbUrl = pbUrl;
+            this.data.pbUrl = pbUrl;
+            this.saveData();
+            this.initPocketBase().then(() => {
+              if (this.planningToken) {
+                this.loadPlanningByToken();
+              }
+            });
+          } else {
             this.saveData();
           }
         }
@@ -1334,7 +1370,14 @@
         render() {
           const container = document.getElementById("weekendsContainer");
 
-          if (!this.currentPlanning && this.pbUrl) {
+          if (!this.currentPlanning && this.planningToken) {
+            // Token présent mais planning pas encore chargé
+            container.innerHTML =
+              '<div class="empty-state">Chargement du planning...</div>';
+            return;
+          }
+
+          if (!this.currentPlanning && this.pbUrl && this.isAuthenticated) {
             container.innerHTML =
               '<div class="empty-state">Créez un planning ou utilisez un lien partagé</div>';
             return;
